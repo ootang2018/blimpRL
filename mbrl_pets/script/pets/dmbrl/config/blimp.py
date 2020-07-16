@@ -90,7 +90,7 @@ class BlimpConfigModule:
         9:11 velocity
         12:14 acceleration
         '''
-        w_alt, w_dist, w_ang = 0.9, 0.0, 0.0
+        w_alt, w_dist, w_ang = 0.0, 0.9, 0.0
 
         # define altitude cost
         alt_cost = tf.abs(obs[:, 8])
@@ -113,7 +113,16 @@ class BlimpConfigModule:
 
     @staticmethod
     def ac_cost_fn(acs):
-
+        '''
+        0: left motor 
+        1: right motor
+        2: back motor
+        3: servo
+        4: top fin
+        5: bottom fin 
+        6: left fin
+        7: right fin
+        '''
         w_act = 0.1
       
         # define action cost

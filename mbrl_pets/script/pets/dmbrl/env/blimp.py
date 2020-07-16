@@ -70,7 +70,7 @@ class BlimpObservationSpace():
 
 class BlimpEnv(gym.Env):
 
-    def __init__(self, SLEEP_RATE = 2, TASK_TIME= 30, USE_MPC=True, Action_Choice= np.array([1,1,1,1,1,1,1,1])): # change sleep_rate and use_mpc
+    def __init__(self, SLEEP_RATE = 2, TASK_TIME= 30, USE_MPC=False, Action_Choice= np.array([1,1,1,1,1,1,1,1])): # change sleep_rate and use_mpc
         super(BlimpEnv, self).__init__()
 
         rospy.init_node('RL_node', anonymous=False)
