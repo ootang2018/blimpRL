@@ -13,7 +13,6 @@ from plane_controller import LateralAutoPilot
 from mixer import BlimpMixer
 from myTF import MyTF
 
-EPISODE_LENGTH = 30000#30*100
 
 class ControlsFlyer():
 
@@ -256,7 +255,7 @@ class ControlsFlyer():
 
         self.MPC_target_publish()
 
-    def start(self):
+    def start(self, EPISODE_LENGTH = 30000):
         time_step=0
         total_reward=0
         obs = self.env.reset()

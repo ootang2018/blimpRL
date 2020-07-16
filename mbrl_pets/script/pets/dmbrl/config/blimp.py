@@ -8,6 +8,8 @@ tf.disable_eager_execution() ###
 
 from dotmap import DotMap
 # import gym
+# import ipdb;ipdb.set_trace()
+
 import sys
 
 from dmbrl.misc.DotmapUtils import get_required_argument
@@ -15,17 +17,21 @@ from dmbrl.modeling.layers import FC
 
 class BlimpConfigModule:
     ENV_NAME = "blimp"
-    SLEEP_RATE = 2# 1 2 5 10 # also change blimp.py 
-    TASK_HORIZON = 30 * SLEEP_RATE # 30 120
-    NTRAIN_ITERS = 250 # 250 500 2000
-    NROLLOUTS_PER_ITER = 1
+    SLEEP_RATE = 2 # 1 2 5 10
+    TASK_TIME = 30 #(sec)
     PLAN_HOR = 5 # 5 7 10 15 20
+    USE_MPC = False # use mpc assigned way point
+    Action_Choice = [1,1,1,1,0,0,0,0] # action number
+    NTRAIN_ITERS = 250 
+
+    TASK_HORIZON = TASK_TIME * SLEEP_RATE 
+    NROLLOUTS_PER_ITER = 1
     MODEL_IN, MODEL_OUT = 23, 15 
 
     def __init__(self):
         from dmbrl.env.blimp import BlimpEnv
-        # import ipdb;ipdb.set_trace()
-        self.ENV = BlimpEnv()
+
+        self.ENV = BlimpEnv(self.SLEEP_RATE, self.TASK_TIME ,self.USE_MPC, self.Action_Choice)
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
         self.SESS = tf.Session(config=cfg)
@@ -76,10 +82,6 @@ class BlimpConfigModule:
     """
     @staticmethod
     def obs_cost_fn(obs):
-        w_alt = 0#0.9
-        w_dist = 0.9
-        w_ang = 0.0#0.025
-
         '''
         state
         0:2 relative_angle
@@ -88,6 +90,8 @@ class BlimpConfigModule:
         9:11 velocity
         12:14 acceleration
         '''
+        w_alt, w_dist, w_ang = 0.9, 0.0, 0.0
+
         # define altitude cost
         alt_cost = tf.abs(obs[:, 8])
         alt_cost = tf.math.tanh(0.05*alt_cost, name=None) #value~-0.3
@@ -109,8 +113,9 @@ class BlimpConfigModule:
 
     @staticmethod
     def ac_cost_fn(acs):
+
         w_act = 0.1
-        
+      
         # define action cost
         act_cost = tf.norm(acs, ord='euclidean', axis=1, name=None) 
         act_cost = tf.math.tanh(0.2*act_cost, name=None)
