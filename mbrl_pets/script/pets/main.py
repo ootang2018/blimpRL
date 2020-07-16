@@ -46,6 +46,5 @@ if __name__ == "__main__":
     parser.add_argument('-e_popsize', type=int, default=500,
                         help='different popsize to use')
     args = parser.parse_args()
-    # args = parser.parse_args(sys.argv[4:])
 	
     main(args.env, "MPC", args.ctrl_arg, args.override, args.logdir)

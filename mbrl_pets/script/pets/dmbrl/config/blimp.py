@@ -22,7 +22,7 @@ class BlimpConfigModule:
     PLAN_HOR = 5 # 5 7 10 15 20
     USE_MPC = False # use mpc assigned way point
     Action_Choice = [1,1,1,1,0,0,0,0] # action number
-    NTRAIN_ITERS = 250 
+    NTRAIN_ITERS = 1000 # 500, 1000, 2000
 
     TASK_HORIZON = TASK_TIME * SLEEP_RATE 
     NROLLOUTS_PER_ITER = 1
