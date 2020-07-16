@@ -60,15 +60,14 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
 def main(logdir):
 	# params
-    SLEEP_RATE = 1 #1 2 50 100Hz
-    N_EPISODE = 2000000
-    EPISODE_TIME = 30 # 30 120 sec
+    SLEEP_RATE = 100 #100Hz
+    N_EPISODE = 1000
+    EPISODE_TIME = 30
     EPISODE_LENGTH = SLEEP_RATE * EPISODE_TIME
     TOTAL_TIMESTEPS = EPISODE_LENGTH * N_EPISODE
 
 	# logdir
-    logdir = os.path.join(logdir, strftime("%Y-%m-%d--%H:%M:%S", localtime()))
-    os.makedirs(logdir)
+    logdir = '/home/yliu2/rl_log/sac_mpc/ALT/3act/2'
     checkpoint_path = os.path.join(logdir,'checkpoint')
     callback_path = logdir
     final_model_path = logdir+'/final_model'
@@ -80,9 +79,9 @@ def main(logdir):
     print("Observation space:", env.observation_space)
     print("Shape:", env.observation_space.shape)
     print("Action space:", env.action_space)
-
-    # callback
-    SAVE_FREQ = EPISODE_LENGTH*20 # save model for every 20 episode
+    #
+    # # callback
+    SAVE_FREQ = EPISODE_LENGTH*20 # every 1 episode
     checkpoint_callback = CheckpointCallback(save_freq=SAVE_FREQ,
     										save_path=checkpoint_path,
                                             name_prefix='sac_callback_model')
@@ -93,13 +92,10 @@ def main(logdir):
     	checkpoint_callback,
     	save_on_best_training_reward_callback])
 
-    # agent
-    model = SAC(MlpPolicy, env, gamma=0.98,
-    	learning_rate=0.0003, buffer_size=1000000, learning_starts=EPISODE_LENGTH*20,
-    	train_freq=1, batch_size=256, tau=0.01, ent_coef='auto',
-    	target_update_interval=1, gradient_steps=1, target_entropy='auto',
-    	action_noise=None, verbose=1, tensorboard_log=logdir, full_tensorboard_log=True,
-    	_init_setup_model=True)
+    # traing got kill for some reason so continue from the checkpoint
+    model_path = '/home/yliu2/rl_log/sac_mpc/ALT/3act/2/best_model.zip'
+    model = SAC.load(model_path)
+    model.set_env(env)
 
     print("---------- Start Learing -----------")
     model.learn(total_timesteps=TOTAL_TIMESTEPS,
@@ -116,6 +112,6 @@ def main(logdir):
 
 if __name__ == "__main__":
 
-	logdir = '/home/yliu2/rl_log/sac_mpc/TAKEOFF/4act'
+	logdir = '/home/yliu2/rl_log/sac_mpc/ALT/3act/2'
 
 	main(logdir)

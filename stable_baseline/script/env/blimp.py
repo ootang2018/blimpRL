@@ -26,17 +26,21 @@ from .gazeboConnection import GazeboConnection
 class BlimpActionSpace():
     def __init__(self):
         '''
-        0: left motor 
+        0: left motor
         1: right motor
         2: back motor
         3: servo
         4: top fin
-        5: bottom fin 
+        5: bottom fin
         6: left fin
         7: right fin
         '''
+        STICK_LIMIT = pi/2
+        FIN_LIMIT = 0#pi/9
+        MOTOR_LIMIT = 70
+        MOTOR3_LIMIT = 0#30
         self.action_space = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-        self.act_bnd = np.array([70, 70, 30, pi/2, pi/9, pi/9, pi/9, pi/9])
+        self.act_bnd = np.array([MOTOR_LIMIT, MOTOR_LIMIT, MOTOR3_LIMIT, STICK_LIMIT, FIN_LIMIT, FIN_LIMIT, FIN_LIMIT, FIN_LIMIT])
         self.shape = self.action_space.shape
         self.dU = self.action_space.shape[0]
 
@@ -50,21 +54,32 @@ class BlimpObservationSpace():
         9:11 velocity
         12:14 acceleration
         '''
+        DISTANCE_BND = 50
+        ORIENTATION_BND = pi
+        ORIENTATION_VELOCITY_BND = pi
+        VELOCITY_BND = 10
+        ACCELERATION_BND = 4
         self.observation_space = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        self.obs_bnd = np.array([pi, pi, pi, pi/2, pi/2, pi/2, 10, 10, 10, 5, 5, 5, 2 ,2 ,2])
+        self.obs_bnd = np.array([ORIENTATION_BND, ORIENTATION_BND, ORIENTATION_BND,
+            ORIENTATION_VELOCITY_BND, ORIENTATION_VELOCITY_BND, ORIENTATION_VELOCITY_BND,
+            DISTANCE_BND, DISTANCE_BND, DISTANCE_BND,
+            VELOCITY_BND, VELOCITY_BND, VELOCITY_BND,
+            ACCELERATION_BND ,ACCELERATION_BND ,ACCELERATION_BND])
         self.shape = self.observation_space.shape
         self.dO = self.observation_space.shape[0]
 
 class BlimpEnv(gym.Env):
 
-    def __init__(self, SLEEP_RATE = 2, USE_MPC=True):
+    def __init__(self, SLEEP_RATE = 100, USE_MPC=False): # modify SLEEP_RATE and use_MPC
         super(BlimpEnv, self).__init__()
 
         rospy.init_node('RL_node', anonymous=False)
         rospy.loginfo("[RL Node] Initialising...")
 
+        self.SLEEP_RATE = SLEEP_RATE
         self.RATE = rospy.Rate(SLEEP_RATE) # loop frequency
-        self.EPISODE_LENGTH = 30 * SLEEP_RATE # 30 sec
+        self.EPISODE_TIME = 30 # 30 sec
+        self.EPISODE_LENGTH = self.EPISODE_TIME * self.SLEEP_RATE
         self.use_MPC = USE_MPC
 
         self._load()
@@ -107,7 +122,8 @@ class BlimpEnv(gym.Env):
 
         # MPC
         self.MPC_HORIZON = 15
-        self.SELECT_MPC_TARGET = 7
+        self.SELECT_MPC_TARGET = 14
+        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 3
         self.MPC_position_target = np.array((0,0,0))
         self.MPC_attitude_target = np.array((0,0,0))
 
@@ -117,8 +133,6 @@ class BlimpEnv(gym.Env):
         self.pub_and_sub = False
 
         rospy.loginfo("[RL Node] Load and Initialize Parameters Finished")
-
-        
 
     def _create_pubs_subs(self):
         rospy.loginfo("[RL Node] Create Subscribers and Publishers...")
@@ -170,11 +184,10 @@ class BlimpEnv(gym.Env):
         rospy.loginfo("[RL Node] Subscribers and Publishers Created")
         self.pub_and_sub = True
 
-    def _reward_callback(self,msg):
+    def _reward_callback(self, msg):
         """
         blimp/reward:
         Float64
-
         :param msg:
         :return:
         """
@@ -203,7 +216,6 @@ class BlimpEnv(gym.Env):
           float64 y
           float64 z
         float64[9] linear_acceleration_covariance
-
         :param msg:
         :return:
         """
@@ -243,7 +255,6 @@ class BlimpEnv(gym.Env):
           float64 x
           float64 y
           float64 z
-
         :param msg:
         :return:
         """
@@ -283,7 +294,6 @@ class BlimpEnv(gym.Env):
     def _interactive_target_callback(self, msg):
         """
         InteractiveMarkerInit
-
         string server_id
         uint64 seq_num
         visualization_msgs/InteractiveMarker[] markers
@@ -301,12 +311,11 @@ class BlimpEnv(gym.Env):
               float64 y
               float64 z
               float64 w
-
         :param msg:
         :return:
         """
         target_pose = msg.markers[0].pose
-        
+
         # NED Frame
         euler = self._euler_from_pose(target_pose)
         target_phi, target_the, target_psi = 0, 0, -1*euler[2]
@@ -319,7 +328,7 @@ class BlimpEnv(gym.Env):
         print("=============================")
         print("position = ",self.target_position)
         print("angle = ",self.target_angle)
-    
+
     def _moving_target_callback(self, msg):
         """
         geometry_msgs/Point position
@@ -331,7 +340,6 @@ class BlimpEnv(gym.Env):
           float64 y
           float64 z
           float64 w
-
         :param msg:
         :return:
         """
@@ -349,8 +357,7 @@ class BlimpEnv(gym.Env):
     def _trajectory_callback(self, msg):
         """
         15 waypoint for the next 3 secs
-
-        geometry_msgs/Pose: 
+        geometry_msgs/Pose:
         geometry_msgs/Point position
           float64 x
           float64 y
@@ -360,7 +367,6 @@ class BlimpEnv(gym.Env):
           float64 y
           float64 z
           float64 w
-
         :param msg:
         :return:
         """
@@ -369,26 +375,28 @@ class BlimpEnv(gym.Env):
 
         position_trajectory = []
         time_trajectory = []
-        yaw_trajectory = [] 
+        yaw_trajectory = []
         MPC_position_trajectory = []
 
-        MPC_rviz_trajectory = PoseArray()  
+        MPC_rviz_trajectory = PoseArray()
         MPC_rviz_trajectory.header.frame_id="world"
         MPC_rviz_trajectory.header.stamp=rospy.Time.now()
         MPC_rviz_trajectory.poses=[]
 
         current_time = time.time()
         for i in range(self.MPC_HORIZON):
+            # NED to my frame
             x = msg.poses[i].position.x
             y = msg.poses[i].position.y
             z = msg.poses[i].position.z
             position_trajectory.append([y,-x,z])
             time_trajectory.append(0.1*i*time_mult+current_time)
-            
+
+            # NED to world frame
             temp_pose_msg = Pose()
-            temp_pose_msg.position.x = y 
-            temp_pose_msg.position.y = x 
-            temp_pose_msg.position.z = -z 
+            temp_pose_msg.position.x = y
+            temp_pose_msg.position.y = x
+            temp_pose_msg.position.z = -z
             MPC_rviz_trajectory.poses.append(temp_pose_msg)
 
         for i in range(0, self.MPC_HORIZON-1):
@@ -396,18 +404,13 @@ class BlimpEnv(gym.Env):
         yaw_trajectory.append(yaw_trajectory[-1])
 
         position_trajectory = np.array(position_trajectory)
-        time_trajectory = np.array(time_trajectory)
         yaw_trajectory = np.array(yaw_trajectory)
         self.MPC_rviz_trajectory_publisher.publish(MPC_rviz_trajectory)
 
-        (_,
-         _,
-         MPC_yaw_cmd) = self.trajectory_control(
-                 position_trajectory,
-                 yaw_trajectory,
-                 time_trajectory, time.time())
-        self.MPC_position_target = position_trajectory[self.SELECT_MPC_TARGET]
-        self.MPC_attitude_target = np.array((0.0, 0.0, MPC_yaw_cmd))
+        # Update MPC target
+        if (self.timestep%self.MPC_TARGET_UPDATE_RATE ==0):
+            self.MPC_position_target = position_trajectory[self.SELECT_MPC_TARGET]
+            self.MPC_attitude_target = yaw_trajectory[self.SELECT_MPC_TARGET] # to avoid dramatic yaw change
 
     def MPC_target_publish(self):
         """
@@ -443,56 +446,10 @@ class BlimpEnv(gym.Env):
         target_pose = Odometry()
         #NED
         target_pose.header.frame_id="world"
-        target_pose.pose.pose.position.x = -self.target_position[1]; 
-        target_pose.pose.pose.position.y = self.target_position[0]; 
+        target_pose.pose.pose.position.x = -self.target_position[1];
+        target_pose.pose.pose.position.y = self.target_position[0];
         target_pose.pose.pose.position.z = self.target_position[2];
         self.MPC_target_publisher.publish(target_pose)
-
-    def trajectory_control(self, position_trajectory, yaw_trajectory, time_trajectory, current_time):
-        """Generate a commanded position, velocity and yaw based on the trajectory
-
-        Args:
-            position_trajectory: list of 3-element numpy arrays, NED positions
-            yaw_trajectory: list yaw commands in radians
-            time_trajectory: list of times (in seconds) that correspond to the position and yaw commands
-            current_time: float corresponding to the current time in seconds
-
-        Returns: tuple (commanded position, commanded velocity, commanded yaw)
-
-        """
-
-        ind_min = np.argmin(np.abs(np.array(time_trajectory) - current_time))
-        time_ref = time_trajectory[ind_min]
-
-
-        if current_time < time_ref:
-            position0 = position_trajectory[ind_min - 1]
-            position1 = position_trajectory[ind_min]
-
-            time0 = time_trajectory[ind_min - 1]
-            time1 = time_trajectory[ind_min]
-            yaw_cmd = yaw_trajectory[ind_min - 1]
-
-        else:
-            yaw_cmd = yaw_trajectory[ind_min]
-            if ind_min >= len(position_trajectory) - 1:
-                position0 = position_trajectory[ind_min]
-                position1 = position_trajectory[ind_min]
-
-                time0 = 0.0
-                time1 = 1.0
-            else:
-
-                position0 = position_trajectory[ind_min]
-                position1 = position_trajectory[ind_min + 1]
-                time0 = time_trajectory[ind_min]
-                time1 = time_trajectory[ind_min + 1]
-
-        position_cmd = (position1 - position0) * \
-                        (current_time - time0) / (time1 - time0) + position0
-        velocity_cmd = (position1 - position0) / (time1 - time0)
-
-        return (position_cmd, velocity_cmd, yaw_cmd)
 
     def _euler_from_pose(self, pose):
         a = pose.orientation.x
@@ -500,15 +457,17 @@ class BlimpEnv(gym.Env):
         c = pose.orientation.z
         d = pose.orientation.w
         euler = MyTF.euler_from_quaternion(a,b,c,d)
-        return euler     
-          
+        return euler
+
     def step(self,action):
         self.timestep += 1
         action = self.act_bnd * action
+
         act = Float64MultiArray()
         self.action = action
         act.data = action
         self.action_publisher.publish(act)
+
         self.RATE.sleep()
         obs, reward, done = self._get_obs()
         return obs, reward, done, {}
@@ -529,9 +488,24 @@ class BlimpEnv(gym.Env):
             relative_angle = self.MPC_attitude_target - self.angle
             relative_distance = self.MPC_position_target - self.position
         else:
-            relative_angle = self.target_angle - self.angle 
+            relative_angle = self.target_angle - self.angle
             relative_distance = self.target_position - self.position
-        
+
+        if relative_angle[0] > np.pi:
+            relative_angle[0] -= 2*np.pi
+        elif  relative_angle[0] < -np.pi:
+            relative_angle[0] += 2*np.pi
+
+        if relative_angle[1] > np.pi:
+            relative_angle[1] -= 2*np.pi
+        elif  relative_angle[1] < -np.pi:
+            relative_angle[1] += 2*np.pi
+
+        if relative_angle[2] > np.pi:
+            relative_angle[2] -= 2*np.pi
+        elif  relative_angle[2] < -np.pi:
+            relative_angle[2] += 2*np.pi
+
         #extend state
         state = []
         state.extend(relative_angle)
@@ -540,7 +514,7 @@ class BlimpEnv(gym.Env):
         state.extend(self.velocity)
         state.extend(self.linear_acceleration)
         state = np.array(state)
-        state = state / self.obs_bnd #normalize
+        state = state / (2*self.obs_bnd) #normalize
 
         #extend reward
         if self.reward is None:
@@ -553,5 +527,9 @@ class BlimpEnv(gym.Env):
         if (self.timestep%(self.EPISODE_LENGTH+1)==0):
             done = True
 
-        return state, reward, done
+        #reset if blimp fly too far away
+        if any(np.abs(self.position)>= 50) :
+            self.gaz.resetSim()
+            reward -= 10
 
+        return state, reward, done
