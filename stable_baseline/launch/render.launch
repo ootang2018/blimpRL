@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-
-<launch>
-
-	<node name="render" pkg="stable_baseline" type="render.py" output="screen"/>
-</launch>
