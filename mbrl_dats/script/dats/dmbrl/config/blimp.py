@@ -14,13 +14,13 @@ from dmbrl.modeling.layers import FC
 
 class BlimpConfigModule:
     ENV_NAME = "blimp"
-    SLEEP_RATE = 10
-    TASK_HORIZON = 30 * SLEEP_RATE # 30sec
-    NTRAIN_ITERS = 250 # 500
+    SLEEP_RATE = 10 # 2 5 10 # also need to change blimp.py and delay_hor in mbexp.py
+    TASK_HORIZON = 30*SLEEP_RATE # 30sec
+    NTRAIN_ITERS = 250 # 250 500
     NROLLOUTS_PER_ITER = 1
-    PLAN_HOR = 10 #5 10 15 20
+    PLAN_HOR = 15 #10 15 20
     INIT_VAR = 0.25
-    MODEL_IN, MODEL_OUT = 23, 15 ### 
+    MODEL_IN, MODEL_OUT = 23, 15 
 
     def __init__(self):
         from dmbrl.env.blimp import BlimpEnv
@@ -97,7 +97,7 @@ class BlimpConfigModule:
     @staticmethod
     def obs_cost_fn(obs):
         w_alt = 0.9
-        w_dist = 0#0.90
+        w_dist = 0.0
         w_ang = 0#0.025
 
         '''
@@ -108,12 +108,12 @@ class BlimpConfigModule:
         9:11 velocity
         12:14 acceleration
         '''
-        # define distance cost
+        # define altitude cost
         alt_cost = tf.abs(obs[:, 8])
         alt_cost = tf.math.tanh(0.05*alt_cost, name=None) #value~-0.3
 
-        # temporarily disabled 
-        dist_cost = obs[:, 6:9]
+        # define distance cost, temporarily disabled 
+        dist_cost = obs[:, 6:8]
         dist_cost = tf.norm(dist_cost, ord='euclidean', axis=1, name=None)
         dist_cost = tf.math.tanh(0.05*dist_cost, name=None) #value~-0.3
 
@@ -129,12 +129,11 @@ class BlimpConfigModule:
 
     @staticmethod
     def ac_cost_fn(acs):
-        w_act = 0.1#0.05
-
+        w_act = 0.1
+        
         # define action cost
-        act_cost = tf.reduce_sum(tf.square(acs), axis=1) #mse action
-        act_cost = tf.math.tanh(act_cost, name=None)
-        # act_mse_cost = tf.reduce_sum(tf.square(acs), axis=1) #mse action, not used
+        act_cost = tf.norm(acs, ord='euclidean', axis=1, name=None) 
+        act_cost = tf.math.tanh(0.2*act_cost, name=None)
 
         return w_act*act_cost
 
