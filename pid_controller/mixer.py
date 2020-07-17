@@ -31,10 +31,10 @@ class BlimpMixer:
 			if r_servo < -np.pi/2:
 				r_servo = -np.pi/2
 
-		self.action[0] = 40*r1 + 50*r2 + 2.0*r4
+		self.action[0] = 40*r1 #+ 50*r2 + 2.0*r4
 		self.action[1] = -40*r1 + 50*r2 + 2.0*r4
-		self.action[2] = 70*r3
-		self.action[3] = r_servo
+		self.action[2] = 0#70*r3
+		self.action[3] = 0#r_servo
 		self.action[4] = 0
 		self.action[5] = 0
 		self.action[6] = 0

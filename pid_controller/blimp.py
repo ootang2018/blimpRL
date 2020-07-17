@@ -123,8 +123,8 @@ class BlimpEnv(gym.Env):
 
         # MPC
         self.MPC_HORIZON = 15
-        self.SELECT_MPC_TARGET = 14
-        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 1
+        self.SELECT_MPC_TARGET = 1
+        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 3
         self.MPC_position_target = np.array((0,0,0))
         self.MPC_attitude_target = np.array((0,0,0))
 
@@ -418,8 +418,8 @@ class BlimpEnv(gym.Env):
 
         # Update MPC target 
         if (self.timestep%self.MPC_TARGET_UPDATE_RATE ==0):
-            self.MPC_position_target = position_trajectory[self.SELECT_MPC_TARGET]
-            self.MPC_attitude_target = yaw_trajectory[self.SELECT_MPC_TARGET] # to avoid dramatic yaw change
+            self.MPC_position_target = np.array(position_trajectory[self.SELECT_MPC_TARGET])
+            self.MPC_attitude_target = np.array([0, 0, yaw_trajectory[self.SELECT_MPC_TARGET]]) # to avoid dramatic yaw change
 
     def MPC_target_publish(self):
         """

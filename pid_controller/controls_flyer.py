@@ -131,7 +131,8 @@ class ControlsFlyer():
         target_position = obs[18:21]
 
         self.local_position = np.array(position)
-        self.rotor_position_target = np.array(target_position)
+        # self.rotor_position_target = np.array(target_position)
+        self.rotor_position_target = np.array([0,0,7])
         self.local_velocity = np.array(velocity)
         self.attitude = np.array(angle)
         self.rotor_attitude_target = np.array(target_angle)
@@ -165,7 +166,7 @@ class ControlsFlyer():
 if __name__ == "__main__":
     SLEEP_RATE = 100
     TASK_TIME= 30
-    USE_MPC= True
+    USE_MPC= False
     Action_Choice= np.array([1,1,1,1,0,0,0,0])
     drone = ControlsFlyer(SLEEP_RATE, TASK_TIME, USE_MPC, Action_Choice)
 
