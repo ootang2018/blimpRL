@@ -17,17 +17,15 @@ EPISODE_LENGTH = 30000#30*100
 
 class ControlsFlyer():
 
-    def __init__(self):
-        self.env = BlimpEnv()
-        self._create_pubs_subs()
+    def __init__(self, SLEEP_RATE = 2, TASK_TIME= 30, USE_MPC=False, Action_Choice= np.array([1,1,1,1,1,1,1,1])):
+        self.env = BlimpEnv(SLEEP_RATE, TASK_TIME, USE_MPC, Action_Choice)
+
         self.rotor_controller = RotorController()
         self.longitudinal_controller = LongitudinalAutoPilot()
         self.lateral_controller = LateralAutoPilot()
         self.mixer = BlimpMixer()
 
         self.cnt=0
-        self.MPC_HORIZON = 15
-        self.SELECT_MPC_TARGET = 3
 
         self.position_trajectory = []
         self.yaw_trajectory = []
@@ -50,125 +48,11 @@ class ControlsFlyer():
 
         self.dt = 0.01
 
-    def _create_pubs_subs(self):
-        rospy.Subscriber(
-            "/machine_1/mpc_calculated/pose_traj",
-            PoseArray,
-            self.trajectory_callback)
-        self.MPC_target_publisher = rospy.Publisher(
-            "/actorpose",
-            Odometry,
-            queue_size=1)
-        self.MPC_rviz_trajectory_publisher = rospy.Publisher(
-            "/blimp/MPC_rviz_trajectory",
-            PoseArray,
-            queue_size=60)
-
-    def trajectory_callback(self, msg):
-        """
-        15 waypoint for the next 3 secs
-
-        geometry_msgs/Pose: 
-        geometry_msgs/Point position
-          float64 x
-          float64 y
-          float64 z
-        geometry_msgs/Quaternion orientation
-          float64 x
-          float64 y
-          float64 z
-          float64 w
-
-        :param msg:
-        :return:
-        """
-        data=[]
-        time_mult=1
-
-        position_trajectory = []
-        time_trajectory = []
-        yaw_trajectory = [] 
-
-        MPC_rviz_trajectory = PoseArray()  
-        MPC_rviz_trajectory.header.frame_id="world"
-        MPC_rviz_trajectory.header.stamp=rospy.Time.now()
-        MPC_rviz_trajectory.poses=[]
-
-        current_time = time.time()
-        for i in range(self.MPC_HORIZON):
-            x = msg.poses[i].position.x
-            y = msg.poses[i].position.y
-            z = msg.poses[i].position.z
-            position_trajectory.append([y,-x,z])
-            time_trajectory.append(0.1*i*time_mult+current_time)
-            
-            temp_pose_msg = Pose()
-            temp_pose_msg.position.x = y 
-            temp_pose_msg.position.y = x 
-            temp_pose_msg.position.z = -z 
-            MPC_rviz_trajectory.poses.append(temp_pose_msg)
-
-        for i in range(0, self.MPC_HORIZON-1):
-            yaw_trajectory.append(np.arctan2(position_trajectory[i+1][1]-position_trajectory[i][1],position_trajectory[i+1][0]-position_trajectory[i][0]))
-        yaw_trajectory.append(yaw_trajectory[-1])
-
-        self.position_trajectory = np.array(position_trajectory)
-        self.time_trajectory = np.array(time_trajectory)
-        self.yaw_trajectory = np.array(yaw_trajectory)
-        self.MPC_rviz_trajectory_publisher.publish(MPC_rviz_trajectory)
-
-    def MPC_target_publish(self):
-        """
-        std_msgs/Header header
-          uint32 seq
-          time stamp
-          string frame_id
-        string child_frame_id
-        geometry_msgs/PoseWithCovariance pose
-          geometry_msgs/Pose pose
-            geometry_msgs/Point position
-              float64 x
-              float64 y
-              float64 z
-            geometry_msgs/Quaternion orientation
-              float64 x
-              float64 y
-              float64 z
-              float64 w
-          float64[36] covariance
-        geometry_msgs/TwistWithCovariance twist
-          geometry_msgs/Twist twist
-            geometry_msgs/Vector3 linear
-              float64 x
-              float64 y
-              float64 z
-            geometry_msgs/Vector3 angular
-              float64 x
-              float64 y
-              float64 z
-          float64[36] covariance
-        """
-        target_pose = Odometry()
-        #NED
-        target_pose.header.frame_id="world"
-        target_pose.pose.pose.position.x = -self.waypoint_target[1]; 
-        target_pose.pose.pose.position.y = self.waypoint_target[0]; 
-        target_pose.pose.pose.position.z = self.waypoint_target[2];
-        self.MPC_target_publisher.publish(target_pose)
-
     ########################
     #   rotor controller   #
     ########################
     def rotor_position_controller(self):
-        #in NED
-        (self.rotor_position_target,
-         self.rotor_velocity_target,
-         yaw_cmd) = self.rotor_controller.trajectory_control(
-                 self.position_trajectory,
-                 self.yaw_trajectory,
-                 self.time_trajectory, time.time())
-        self.rotor_position_target = self.position_trajectory[self.SELECT_MPC_TARGET]
-        self.rotor_attitude_target = np.array((0.0, 0.0, yaw_cmd))
+
         acceleration_cmd = self.rotor_controller.lateral_position_control(
                 self.rotor_position_target[0:2],
                 self.rotor_velocity_target[0:2],
@@ -215,7 +99,7 @@ class ControlsFlyer():
     #   plane controller   #
     ########################
     def plane_altitude_controller(self):
-        pitch_cmd = self.longitudinal_controller.altitude_loop(self.local_position[2], -2.5, self.dt) #self.local_position[2], self.waypoint_target[2], dt
+        pitch_cmd = self.longitudinal_controller.altitude_loop(self.local_position[2], -2.5, self.dt) 
         q_cmd = self.longitudinal_controller.pitch_loop(self.attitude[1], self.body_rate[1], pitch_cmd)
         self.cmd_plane = [0, q_cmd, 0, 35]
 
@@ -247,14 +131,11 @@ class ControlsFlyer():
         target_position = obs[18:21]
 
         self.local_position = np.array(position)
-        self.waypoint_target = np.array(target_position)
-        # self.waypoint_target = np.array([0,0,-2])
+        self.rotor_position_target = np.array(target_position)
         self.local_velocity = np.array(velocity)
         self.attitude = np.array(angle)
-        self.waypoint_attitude_target = np.array(target_angle)
+        self.rotor_attitude_target = np.array(target_angle)
         self.body_rate = np.array(angular_velocity)
-
-        self.MPC_target_publish()
 
     def start(self):
         time_step=0
@@ -266,7 +147,7 @@ class ControlsFlyer():
             time_step+=1
             self.control_update()
             self.actuation_update()
-            obs, reward, done = self.env.step(self.action)
+            obs, reward, done, _ = self.env.step(self.action)
             self.unwrap_obs(obs)
 
             if time_step%10 == 0:
@@ -282,6 +163,11 @@ class ControlsFlyer():
         print("total reward = ", total_reward)
 
 if __name__ == "__main__":
-    drone = ControlsFlyer()
+    SLEEP_RATE = 100
+    TASK_TIME= 30
+    USE_MPC= True
+    Action_Choice= np.array([1,1,1,1,0,0,0,0])
+    drone = ControlsFlyer(SLEEP_RATE, TASK_TIME, USE_MPC, Action_Choice)
+
     time.sleep(2)
     drone.start()
