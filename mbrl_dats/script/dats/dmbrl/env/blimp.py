@@ -36,9 +36,9 @@ class BlimpActionSpace():
         7: right fin
         '''
         STICK_LIMIT = pi/2
-        FIN_LIMIT = 0#pi/9
-        MOTOR_LIMIT = 70
-        MOTOR3_LIMIT = 0#30
+        FIN_LIMIT = pi/9
+        MOTOR_LIMIT = 70 
+        MOTOR3_LIMIT = 30 
         self.action_space = np.array([0, 0, 0, 0, 0, 0, 0, 0])
         self.act_bnd = np.array([MOTOR_LIMIT, MOTOR_LIMIT, MOTOR3_LIMIT, STICK_LIMIT, FIN_LIMIT, FIN_LIMIT, FIN_LIMIT, FIN_LIMIT])
         self.shape = self.action_space.shape
@@ -70,7 +70,7 @@ class BlimpObservationSpace():
 
 class BlimpEnv(gym.Env):
 
-    def __init__(self, SLEEP_RATE = 10, USE_MPC=True):
+    def __init__(self, SLEEP_RATE = 2, TASK_TIME= 30, USE_MPC=False, Action_Choice= np.array([1,1,1,1,1,1,1,1])): # change sleep_rate and use_mpc
         super(BlimpEnv, self).__init__()
 
         rospy.init_node('RL_node', anonymous=False)
@@ -78,9 +78,10 @@ class BlimpEnv(gym.Env):
 
         self.SLEEP_RATE = SLEEP_RATE
         self.RATE = rospy.Rate(SLEEP_RATE) # loop frequency
-        self.EPISODE_TIME = 30 # 30 sec
+        self.EPISODE_TIME = TASK_TIME 
         self.EPISODE_LENGTH = self.EPISODE_TIME * self.SLEEP_RATE 
         self.use_MPC = USE_MPC
+        self.Action_Choice = Action_Choice
 
         self._load()
         self._create_pubs_subs()
@@ -100,7 +101,7 @@ class BlimpEnv(gym.Env):
 
         # action space
         act_space = BlimpActionSpace()
-        self.act_bnd = act_space.act_bnd
+        self.act_bnd = act_space.act_bnd * self.Action_Choice
         self.action_space = spaces.Box(low=-1, high=1,
                                         shape=act_space.shape, dtype=np.float32)
 
@@ -123,7 +124,7 @@ class BlimpEnv(gym.Env):
         # MPC
         self.MPC_HORIZON = 15
         self.SELECT_MPC_TARGET = 14
-        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 3 
+        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 1
         self.MPC_position_target = np.array((0,0,0))
         self.MPC_attitude_target = np.array((0,0,0))
 
@@ -469,6 +470,7 @@ class BlimpEnv(gym.Env):
           
     def step(self,action):
         self.timestep += 1
+
         action = self.act_bnd * action
 
         act = Float64MultiArray()
@@ -531,7 +533,7 @@ class BlimpEnv(gym.Env):
 
         #done is used to reset environment when episode finished
         done = False
-        if (self.timestep%(self.EPISODE_LENGTH+1)==0):
+        if (self.timestep%(self.EPISODE_LENGTH+1)==0): #disable this for longer rendering time
             done = True
 
         #reset if blimp fly too far away
