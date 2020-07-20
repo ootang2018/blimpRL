@@ -123,8 +123,8 @@ class BlimpEnv(gym.Env):
 
         # MPC
         self.MPC_HORIZON = 15
-        self.SELECT_MPC_TARGET = 1
-        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 3
+        self.SELECT_MPC_TARGET = 5
+        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 1
         self.MPC_position_target = np.array((0,0,0))
         self.MPC_attitude_target = np.array((0,0,0))
 
@@ -500,21 +500,6 @@ class BlimpEnv(gym.Env):
         else:
             target_angle = self.target_angle
             target_position = self.target_position
-        
-        # if relative_angle[0] > np.pi:
-        #     relative_angle[0] -= 2*np.pi
-        # elif  relative_angle[0] < -np.pi:
-        #     relative_angle[0] += 2*np.pi
-
-        # if relative_angle[1] > np.pi:
-        #     relative_angle[1] -= 2*np.pi
-        # elif  relative_angle[1] < -np.pi:
-        #     relative_angle[1] += 2*np.pi
-
-        # if relative_angle[2] > np.pi:
-        #     relative_angle[2] -= 2*np.pi
-        # elif  relative_angle[2] < -np.pi:
-        #     relative_angle[2] += 2*np.pi
 
         #extend state
         state = []

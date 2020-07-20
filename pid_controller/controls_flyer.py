@@ -132,7 +132,7 @@ class ControlsFlyer():
 
         self.local_position = np.array(position)
         # self.rotor_position_target = np.array(target_position)
-        self.rotor_position_target = np.array([0,0,7])
+        self.rotor_position_target = np.array([0,0,2])
         self.local_velocity = np.array(velocity)
         self.attitude = np.array(angle)
         self.rotor_attitude_target = np.array(target_angle)
