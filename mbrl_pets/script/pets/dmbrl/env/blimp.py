@@ -70,12 +70,13 @@ class BlimpObservationSpace():
 
 class BlimpEnv(gym.Env):
 
-    def __init__(self, SLEEP_RATE = 2, TASK_TIME= 30, USE_MPC=False, Action_Choice= np.array([1,1,1,1,1,1,1,1])): # change sleep_rate and use_mpc
+    def __init__(self, render_mode = False, SLEEP_RATE = 2, TASK_TIME= 30, USE_MPC=False, Action_Choice= np.array([1,1,1,1,1,1,1,1])): # change sleep_rate and use_mpc
         super(BlimpEnv, self).__init__()
 
         rospy.init_node('RL_node', anonymous=False)
         rospy.loginfo("[RL Node] Initialising...")
 
+        self.render_mode = render_mode
         self.SLEEP_RATE = SLEEP_RATE
         self.RATE = rospy.Rate(SLEEP_RATE) # loop frequency
         self.EPISODE_TIME = TASK_TIME 
@@ -533,7 +534,7 @@ class BlimpEnv(gym.Env):
 
         #done is used to reset environment when episode finished
         done = False
-        if (self.timestep%(self.EPISODE_LENGTH+1)==0): #disable this for longer rendering time
+        if (self.timestep%(self.EPISODE_LENGTH+1)==0 and self.render_mode): 
             done = True
 
         #reset if blimp fly too far away
