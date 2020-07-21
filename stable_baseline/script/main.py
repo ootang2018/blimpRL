@@ -60,7 +60,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
 def main(logdir):
 	# params
-    SLEEP_RATE = 100 #1 2 50 100Hz
+    SLEEP_RATE = 10 #1 2 10 50 100Hz
     EPISODE_TIME = 30 # 30 120 sec
     USE_MPC = False
     N_EPISODE = 2000000
@@ -118,6 +118,6 @@ def main(logdir):
 
 if __name__ == "__main__":
 
-	logdir = '/home/yliu2/blimp_ws/blimp_rl_ws/exp_log/SAC/HOVER/4act'
+	logdir = '/home/yliu2/blimp_ws/exp_log/SAC/HOVER/4act'
 
 	main(logdir)
