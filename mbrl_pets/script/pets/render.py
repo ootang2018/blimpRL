@@ -18,17 +18,6 @@ from dmbrl.config import create_config
 def main(env, ctrl_type, ctrl_args, overrides, logdir):
 
     ctrl_args = DotMap(**{key: val for (key, val) in ctrl_args})
-
-    ## change this get access to the model
-    model_dir = "/home/rtallamraju/catkin_ws_py3/src/rl_log/pets_mpc/TAKEOFF/4act/exp_hor7_rate2"
-
-    overrides.append(["ctrl_cfg.prop_cfg.model_init_cfg.model_dir", model_dir])
-    overrides.append(["ctrl_cfg.prop_cfg.model_init_cfg.load_model", "True"])
-    overrides.append(["ctrl_cfg.prop_cfg.model_pretrained", "True"])
-    overrides.append(["exp_cfg.exp_cfg.ninit_rollouts", "0"])
-    overrides.append(["exp_cfg.exp_cfg.ntrain_iters", "1"])
-    overrides.append(["exp_cfg.log_cfg.nrecord", "1"])
-
     cfg = create_config(env, ctrl_type, ctrl_args, overrides, logdir)
     cfg.pprint()
 
@@ -43,10 +32,28 @@ def main(env, ctrl_type, ctrl_args, overrides, logdir):
 
 
 if __name__ == "__main__":
-    env = 'blimp'
-    ctrl_type = "MPC"
-    ctrl_args = []
-    overrides = []
-    logdir = '/home/rtallamraju/catkin_ws_py3/src/rl_log/test/pets_mpc/takeoff/left'
 
-    main(env, ctrl_type, ctrl_args, overrides, logdir)
+    ## change this get access to the model
+    model_dir = "/home/rtallamraju/catkin_ws_py3/src/rl_log/pets_mpc/TAKEOFF/4act/exp_hor7_rate2" # TODO: make this in bash for easier modification
+
+    overrides.append(["ctrl_cfg.prop_cfg.model_init_cfg.model_dir", model_dir])
+    overrides.append(["ctrl_cfg.prop_cfg.model_init_cfg.load_model", "True"])
+    overrides.append(["ctrl_cfg.prop_cfg.model_pretrained", "True"])
+    overrides.append(["exp_cfg.exp_cfg.ninit_rollouts", "0"])
+    overrides.append(["exp_cfg.exp_cfg.ntrain_iters", "1"])
+    overrides.append(["exp_cfg.log_cfg.nrecord", "1"])
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-env', type=str, default='blimp',
+                        help='Environment name: select from [blimp, cartpole, reacher, pusher, halfcheetah]')
+    parser.add_argument('-ca', '--ctrl_arg', action='append', nargs=2, default=[],
+                        help='Controller arguments, see https://github.com/kchua/handful-of-trials#controller-arguments')
+    parser.add_argument('-o', '--override', action='append', nargs=2, default=overrides,
+                        help='Override default parameters, see https://github.com/kchua/handful-of-trials#overrides')
+    parser.add_argument('-logdir', type=str, default="./log",
+                        help='Directory to which results will be logged (default: ./log)')
+    parser.add_argument('-e_popsize', type=int, default=500,
+                        help='different popsize to use')
+    args = parser.parse_args()
+    
+    main(args.env, "MPC", args.ctrl_arg, args.override, args.logdir)

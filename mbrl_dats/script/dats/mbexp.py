@@ -39,9 +39,9 @@ def main(env, ctrl_type, ctrl_args, overrides, logdir, args):
 
 if __name__ == "__main__":   
     env = "blimp"
-    ctrl_arg = [("opt-type","CEM"),("model-type","PE"),("prop-type","E")]
-    override = [("exp_cfg.sim_cfg.delay_hor" ,"5"),("ctrl_cfg.prop_cfg.delay_step", "5")]
-    logdir = "/home/yliu_local/blimp_data/DATS_MPC/ALT/3act"
+    ctrl_arg = [("opt-type","CEM"),("model-type","PE"),("prop-type","TSinf")]
+    override = [("exp_cfg.sim_cfg.delay_hor" ,"1"),("ctrl_cfg.prop_cfg.delay_step", "1")]
+    logdir = "/home/yliu_local/blimp_ws/exp_log/DATS/HOVER/4act"
 
 
     parser = argparse.ArgumentParser()

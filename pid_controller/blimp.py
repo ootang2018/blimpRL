@@ -7,13 +7,16 @@ import rospy
 import sys
 
 import numpy as np
-from dotmap import DotMap
+import gym
+from gym import spaces
+
 from math import pi
 
 from std_msgs.msg import Float64, Float64MultiArray
 from sensor_msgs.msg import JointState, Imu
 from mav_msgs.msg import Actuators
-from geometry_msgs.msg import Twist, TwistStamped, Pose, Point, PointStamped
+from geometry_msgs.msg import Twist, TwistStamped, PoseArray, Pose, Point, PointStamped
+from nav_msgs.msg import Odometry
 from std_srvs.srv import Empty
 from visualization_msgs.msg import *
 
@@ -22,54 +25,27 @@ from gazeboConnection import GazeboConnection
 
 class BlimpActionSpace():
     def __init__(self):
-        # m1 m2 m3 s ftop fbot fleft fright
+        '''
+        0: left motor 
+        1: right motor
+        2: back motor
+        3: servo
+        4: top fin
+        5: bottom fin 
+        6: left fin
+        7: right fin
+        '''
+        STICK_LIMIT = pi/2
+        FIN_LIMIT = pi/9
+        MOTOR_LIMIT = 70 
+        MOTOR3_LIMIT = 30 
         self.action_space = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-        self.high = np.array([70, 70, 30, pi/2, pi/9, pi/9, pi/9, pi/9])
-        self.low = -self.high
+        self.act_bnd = np.array([MOTOR_LIMIT, MOTOR_LIMIT, MOTOR3_LIMIT, STICK_LIMIT, FIN_LIMIT, FIN_LIMIT, FIN_LIMIT, FIN_LIMIT])
         self.shape = self.action_space.shape
         self.dU = self.action_space.shape[0]
 
-
 class BlimpObservationSpace():
     def __init__(self):
-
-        self.observation_space = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        self.high = np.array([pi, pi, pi, pi, pi, pi, pi/2, pi/4, pi/4, 10, 10, 10, 10 ,10 ,10 , 5, 2.5, 2.5, 2, 1, 1])
-        self.low = -self.high
-        self.shape = self.observation_space.shape
-        self.dO = self.observation_space.shape[0]
-
-class BlimpEnv():
-
-    def __init__(self):
-        rospy.init_node('control_node', anonymous=False)
-        rospy.loginfo("[Control Node] Initialising...")
-
-        self._load()
-        self._create_pubs_subs()
-
-        self.gaz = GazeboConnection(True, "WORLD")
-        # self.gaz.unpauseSim()
-
-        rospy.loginfo("[Control Node] Initialized")
-
-    def _load(self):
-        rospy.loginfo("[Control Node] Load and Initialize Parameters...")
-
-        self.RATE = rospy.Rate(100) # loop frequency
-        self.GRAVITY = 9.81
-        self.cnt = 0
-
-        # action noise
-        noise_stddev = 0.1
-        self.noise_stddev = noise_stddev
-
-        # action space
-        self.action_space = BlimpActionSpace()
-        self.dU = self.action_space.dU
-        # self.action = (self.action_space.high + self.action_space.low)/2
-
-        # observation space
         '''
         state
         0:2 relative angle
@@ -78,23 +54,89 @@ class BlimpEnv():
         9:11 velocity
         12:14 acceleration
         '''
-        self.observation_space = BlimpObservationSpace()
-        self.dO = self.observation_space.dO
+        DISTANCE_BND = 50
+        ORIENTATION_BND = pi 
+        ORIENTATION_VELOCITY_BND = pi
+        VELOCITY_BND = 10
+        ACCELERATION_BND = 4
+        self.observation_space = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.obs_bnd = np.array([ORIENTATION_BND, ORIENTATION_BND, ORIENTATION_BND,
+            ORIENTATION_VELOCITY_BND, ORIENTATION_VELOCITY_BND, ORIENTATION_VELOCITY_BND,
+            DISTANCE_BND, DISTANCE_BND, DISTANCE_BND,
+            VELOCITY_BND, VELOCITY_BND, VELOCITY_BND,
+            ACCELERATION_BND ,ACCELERATION_BND ,ACCELERATION_BND])
+        self.shape = self.observation_space.shape
+        self.dO = self.observation_space.shape[0]
+
+class BlimpEnv(gym.Env):
+
+    def __init__(self, SLEEP_RATE = 2, TASK_TIME= 30, USE_MPC=False, Action_Choice= np.array([1,1,1,1,1,1,1,1])): # change sleep_rate and use_mpc
+        super(BlimpEnv, self).__init__()
+
+        rospy.init_node('RL_node', anonymous=False)
+        rospy.loginfo("[RL Node] Initialising...")
+
+        self.SLEEP_RATE = SLEEP_RATE
+        self.RATE = rospy.Rate(SLEEP_RATE) # loop frequency
+        self.EPISODE_TIME = TASK_TIME 
+        self.EPISODE_LENGTH = self.EPISODE_TIME * self.SLEEP_RATE 
+        self.use_MPC = USE_MPC
+        self.Action_Choice = Action_Choice
+
+        self._load()
+        self._create_pubs_subs()
+
+        self.gaz = GazeboConnection(True, "WORLD")
+
+        rospy.loginfo("[RL Node] Initialized")
+
+    def _load(self):
+        rospy.loginfo("[RL Node] Load and Initialize Parameters...")
+
+        self.GRAVITY = 9.81
+
+        # action noise
+        noise_stddev = 0.1
+        self.noise_stddev = noise_stddev
+
+        # action space
+        act_space = BlimpActionSpace()
+        self.act_bnd = act_space.act_bnd * self.Action_Choice
+        self.action_space = spaces.Box(low=-1, high=1,
+                                        shape=act_space.shape, dtype=np.float32)
+
+        # observation space
+        obs_space = BlimpObservationSpace()
+        self.obs_bnd = obs_space.obs_bnd
+        self.observation_space = spaces.Box(low=-1, high=1,
+                                            shape=obs_space.shape, dtype=np.float32)
 
         # msgs initialize
-        self.angle = [0,0,0]
-        self.target_angle = [0,0,0]
-        self.angular_velocity = [0,0,0]
-        self.position = [0,0,0]
-        self.target_position = [0,0,0]
-        self.velocity = [0,0,0]
-        self.linear_acceleration = [0,0,0]
+        self.angle = np.array((0,0,0))
+        self.target_angle = np.array((0,0,0))
+        self.angular_velocity = np.array((0,0,0))
+        self.position = np.array((0,0,0))
+        self.target_position = np.array((0,0,0))
+        self.velocity = np.array((0,0,0))
+        self.linear_acceleration = np.array((0,0,0))
         self.reward = Float64()
 
-        rospy.loginfo("[Control Node] Load and Initialize Parameters Finished")
+        # MPC
+        self.MPC_HORIZON = 15
+        self.SELECT_MPC_TARGET = 5
+        self.MPC_TARGET_UPDATE_RATE = self.SLEEP_RATE * 1
+        self.MPC_position_target = np.array((0,0,0))
+        self.MPC_attitude_target = np.array((0,0,0))
+
+        # misc
+        self.cnt=0
+        self.timestep=1
+        self.pub_and_sub = False
+
+        rospy.loginfo("[RL Node] Load and Initialize Parameters Finished")
 
     def _create_pubs_subs(self):
-        rospy.loginfo("[Control Node] Create Subscribers and Publishers...")
+        rospy.loginfo("[RL Node] Create Subscribers and Publishers...")
 
         """ create subscribers """
         rospy.Subscriber(
@@ -121,16 +163,29 @@ class BlimpEnv():
             "/blimp/reward",
             Float64,
             self._reward_callback)
+        rospy.Subscriber(
+            "/machine_1/mpc_calculated/pose_traj",
+            PoseArray,
+            self._trajectory_callback)
 
         """ create publishers """
         self.action_publisher = rospy.Publisher(
             "/blimp/controller_cmd",
             Float64MultiArray,
             queue_size=1)
+        self.MPC_target_publisher = rospy.Publisher(
+            "/actorpose",
+            Odometry,
+            queue_size=1)
+        self.MPC_rviz_trajectory_publisher = rospy.Publisher(
+            "/blimp/MPC_rviz_trajectory",
+            PoseArray,
+            queue_size=60)
 
-        rospy.loginfo("[Control Node] Subscribers and Publishers Created")
+        rospy.loginfo("[RL Node] Subscribers and Publishers Created")
+        self.pub_and_sub = True
 
-    def _reward_callback(self,msg):
+    def _reward_callback(self, msg):
         """
         blimp/reward:
         Float64
@@ -179,7 +234,7 @@ class BlimpEnv():
 
         ax = -1*msg.linear_acceleration.x
         ay = msg.linear_acceleration.y
-        az = -1*msg.linear_acceleration.z + self.GRAVITY
+        az = msg.linear_acceleration.z - self.GRAVITY
 
         # from Quaternion to Euler Angle
         euler = MyTF.euler_from_quaternion(a,b,c,d)
@@ -188,9 +243,9 @@ class BlimpEnv():
         the = -1*euler[1]
         psi = -1*euler[2]
 
-        self.angle = [phi,the,psi]
-        self.angular_velocity = [p,q,r]
-        self.linear_acceleration = [ax,ay,az]
+        self.angle = np.array((phi,the,psi))
+        self.angular_velocity = np.array((p,q,r))
+        self.linear_acceleration = np.array((ax,ay,az))
 
     def _gps_callback(self, msg):
         """
@@ -212,7 +267,10 @@ class BlimpEnv():
         # NED Frame
         location.point.y = location.point.y * -1
         location.point.z = location.point.z * -1
-        self.position = [location.point.x, location.point.y, location.point.z]
+        self.position = np.array((location.point.x, location.point.y, location.point.z))
+
+        if (self.pub_and_sub):
+            self.MPC_target_publish()
 
     def _velocity_callback(self, msg):
         """
@@ -235,7 +293,7 @@ class BlimpEnv():
         # NED Frame
         velocity.twist.linear.y = velocity.twist.linear.y * -1
         velocity.twist.linear.z = velocity.twist.linear.z * -1
-        self.velocity = [velocity.twist.linear.x, velocity.twist.linear.y, velocity.twist.linear.z]
+        self.velocity = np.array((velocity.twist.linear.x, velocity.twist.linear.y, velocity.twist.linear.z))
 
     def _interactive_target_callback(self, msg):
         """
@@ -267,10 +325,10 @@ class BlimpEnv():
         # NED Frame
         euler = self._euler_from_pose(target_pose)
         target_phi, target_the, target_psi = 0, 0, -1*euler[2]
-        self.target_angle = [target_phi, target_the, target_psi]
+        self.target_angle = np.array((target_phi, target_the, target_psi))
         target_pose.position.y = target_pose.position.y*-1
         target_pose.position.z = target_pose.position.z*-1
-        self.target_position = [target_pose.position.x, target_pose.position.y, target_pose.position.z]
+        self.target_position = np.array((target_pose.position.x, target_pose.position.y, target_pose.position.z))
 
         print("Interactive Target Pose")
         print("=============================")
@@ -296,12 +354,111 @@ class BlimpEnv():
         target_pose = msg
         euler = self._euler_from_pose(target_pose)
         target_phi, target_the, target_psi = 0, 0, euler[2]
-        self.target_angle = [target_phi, target_the, target_psi]
+        self.target_angle = np.array((target_phi, target_the, target_psi))
 
         # NED Frame
         target_pose.position.y = target_pose.position.y*-1
         target_pose.position.z = target_pose.position.z*-1
-        self.target_position = [target_pose.position.x, target_pose.position.y, target_pose.position.z]
+        self.target_position = np.array((target_pose.position.x, target_pose.position.y, target_pose.position.z))
+
+    def _trajectory_callback(self, msg):
+        """
+        15 waypoint for the next 3 secs
+
+        geometry_msgs/Pose: 
+        geometry_msgs/Point position
+          float64 x
+          float64 y
+          float64 z
+        geometry_msgs/Quaternion orientation
+          float64 x
+          float64 y
+          float64 z
+          float64 w
+
+        :param msg:
+        :return:
+        """
+        data=[]
+        time_mult=1
+
+        position_trajectory = []
+        time_trajectory = []
+        yaw_trajectory = [] 
+        MPC_position_trajectory = []
+
+        MPC_rviz_trajectory = PoseArray()  
+        MPC_rviz_trajectory.header.frame_id="world"
+        MPC_rviz_trajectory.header.stamp=rospy.Time.now()
+        MPC_rviz_trajectory.poses=[]
+
+        current_time = time.time()
+        for i in range(self.MPC_HORIZON):
+            # NED to my frame
+            x = msg.poses[i].position.x
+            y = msg.poses[i].position.y
+            z = msg.poses[i].position.z
+            position_trajectory.append([y,-x,z])
+            time_trajectory.append(0.1*i*time_mult+current_time)
+            
+            # NED to world frame
+            temp_pose_msg = Pose()
+            temp_pose_msg.position.x = y 
+            temp_pose_msg.position.y = x 
+            temp_pose_msg.position.z = -z 
+            MPC_rviz_trajectory.poses.append(temp_pose_msg)
+
+        for i in range(0, self.MPC_HORIZON-1):
+            yaw_trajectory.append(np.arctan2(position_trajectory[i+1][1]-position_trajectory[i][1],position_trajectory[i+1][0]-position_trajectory[i][0]))
+        yaw_trajectory.append(yaw_trajectory[-1])
+
+        position_trajectory = np.array(position_trajectory)
+        yaw_trajectory = np.array(yaw_trajectory)
+        self.MPC_rviz_trajectory_publisher.publish(MPC_rviz_trajectory)
+
+        # Update MPC target 
+        if (self.timestep%self.MPC_TARGET_UPDATE_RATE ==0):
+            self.MPC_position_target = np.array(position_trajectory[self.SELECT_MPC_TARGET])
+            self.MPC_attitude_target = np.array([0, 0, yaw_trajectory[self.SELECT_MPC_TARGET]]) # to avoid dramatic yaw change
+
+    def MPC_target_publish(self):
+        """
+        std_msgs/Header header
+          uint32 seq
+          time stamp
+          string frame_id
+        string child_frame_id
+        geometry_msgs/PoseWithCovariance pose
+          geometry_msgs/Pose pose
+            geometry_msgs/Point position
+              float64 x
+              float64 y
+              float64 z
+            geometry_msgs/Quaternion orientation
+              float64 x
+              float64 y
+              float64 z
+              float64 w
+          float64[36] covariance
+        geometry_msgs/TwistWithCovariance twist
+          geometry_msgs/Twist twist
+            geometry_msgs/Vector3 linear
+              float64 x
+              float64 y
+              float64 z
+            geometry_msgs/Vector3 angular
+              float64 x
+              float64 y
+              float64 z
+          float64[36] covariance
+        """
+        target_pose = Odometry()
+        #NED
+        target_pose.header.frame_id="world"
+        target_pose.pose.pose.position.x = -self.target_position[1]; 
+        target_pose.pose.pose.position.y = self.target_position[0]; 
+        target_pose.pose.pose.position.z = self.target_position[2];
+        self.MPC_target_publisher.publish(target_pose)
 
     def _euler_from_pose(self, pose):
         a = pose.orientation.x
@@ -312,18 +469,22 @@ class BlimpEnv():
         return euler     
           
     def step(self,action):
+        self.timestep += 1
+
+        action = self.act_bnd * action
+
         act = Float64MultiArray()
         self.action = action
         act.data = action
         self.action_publisher.publish(act)
 
         self.RATE.sleep()
-
         obs, reward, done = self._get_obs()
-        return obs, reward, done
+        return obs, reward, done, {}
 
     def reset(self):
         self.gaz.resetSim()
+        self.timestep = 1
         obs, reward, done = self._get_obs()
         return obs
 
@@ -333,10 +494,12 @@ class BlimpEnv():
         return action
 
     def _get_obs(self):
-        angle_diff_0 = self.target_angle[0] - self.angle[0]; angle_diff_1 = self.target_angle[1] - self.angle[1]; angle_diff_2 = self.target_angle[2] - self.angle[2]
-        distance_diff_0 = self.target_position[0] - self.position[0]; distance_diff_1 = self.target_position[1] - self.position[1]; distance_diff_2 = self.target_position[2] - self.position[2]
-        relative_angle = [angle_diff_0, angle_diff_1, angle_diff_2]
-        relative_distance = [distance_diff_0, distance_diff_1, distance_diff_2]
+        if (self.use_MPC):
+            target_angle = self.MPC_attitude_target
+            target_position = self.MPC_position_target 
+        else:
+            target_angle = self.target_angle
+            target_position = self.target_position
 
         #extend state
         state = []
@@ -345,9 +508,9 @@ class BlimpEnv():
         state.extend(self.position)
         state.extend(self.velocity)
         state.extend(self.linear_acceleration)
-
-        state.extend(self.target_angle)
-        state.extend(self.target_position)
+        state.extend(target_angle)
+        state.extend(target_position)
+        state = np.array(state)
 
         #extend reward
         if self.reward is None:
@@ -355,7 +518,14 @@ class BlimpEnv():
         else:
             reward = self.reward.data
 
-        #done is not used in this experiment
+        #done is used to reset environment when episode finished
         done = False
+        if (self.timestep%(self.EPISODE_LENGTH+1)==0): #disable this for longer rendering time
+            done = True
+
+        #reset if blimp fly too far away
+        if any(np.abs(self.position)>= 50) :
+            self.gaz.resetSim()
+            reward -= 10
 
         return state, reward, done
