@@ -16,17 +16,17 @@ from dmbrl.controller.MPC import MPC
 from dmbrl.config import create_config
 
 def main(env, ctrl_type, ctrl_args, overrides, logdir):
-
     ctrl_args = DotMap(**{key: val for (key, val) in ctrl_args})
-
     cfg = create_config(env, ctrl_type, ctrl_args, overrides, logdir)
     cfg.pprint()
 
     if ctrl_type == "MPC":
         cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
+
     exp = MBRLExperiment(cfg.exp_cfg)
 
-    os.makedirs(exp.logdir)
+    if not os.path.exists(exp.logdir):
+        os.makedirs(exp.logdir)
     with open(os.path.join(exp.logdir, "config.txt"), "w") as f:
         f.write(pprint.pformat(cfg.toDict()))
     exp.run_experiment()
@@ -41,9 +41,6 @@ if __name__ == "__main__":
     overrides.append(["ctrl_cfg.prop_cfg.model_init_cfg.model_dir", model_dir])
     overrides.append(["ctrl_cfg.prop_cfg.model_init_cfg.load_model", "True"])
     overrides.append(["ctrl_cfg.prop_cfg.model_pretrained", "True"])
-    overrides.append(["exp_cfg.exp_cfg.ninit_rollouts", "0"])
-    overrides.append(["exp_cfg.exp_cfg.ntrain_iters", "1"])
-    overrides.append(["exp_cfg.log_cfg.nrecord", "1"])
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-env', type=str, default='blimp',
@@ -57,5 +54,5 @@ if __name__ == "__main__":
     parser.add_argument('-e_popsize', type=int, default=500,
                         help='different popsize to use')
     args = parser.parse_args()
-    
+	
     main(args.env, "MPC", args.ctrl_arg, args.override, args.logdir)

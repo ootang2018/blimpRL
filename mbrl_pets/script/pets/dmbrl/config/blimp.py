@@ -17,14 +17,14 @@ from dmbrl.modeling.layers import FC
 
 class BlimpConfigModule:
     ENV_NAME = "blimp"
-    RENDER = False
     SLEEP_RATE = 2 # 1 2 5 10
     TASK_TIME = 30 #(sec)
     PLAN_HOR = 10 # 5 7 10 15 20
-    USE_MPC = True # use mpc assigned way point
     Action_Choice = [1,1,1,1,0,0,0,0] # action number
     NTRAIN_ITERS = 1000 # 500, 1000, 2000
 
+    USE_MPC = False # use mpc assigned way point
+    RENDER = False
 
     TASK_HORIZON = TASK_TIME * SLEEP_RATE 
     NROLLOUTS_PER_ITER = 1
@@ -96,17 +96,17 @@ class BlimpConfigModule:
 
         # define altitude cost
         alt_cost = tf.abs(obs[:, 8])
-        alt_cost = tf.math.tanh(0.05*alt_cost, name=None) #value~-0.3
+        alt_cost = tf.math.tanh(0.05*alt_cost, name=None) 
 
-        # define distance cost, temporarily disabled 
+        # define distance cost 
         dist_cost = obs[:, 6:9]
         dist_cost = tf.norm(dist_cost, ord='euclidean', axis=1, name=None)
-        dist_cost = tf.math.tanh(0.05*dist_cost, name=None) #value~-0.3
+        dist_cost = tf.math.tanh(0.05*dist_cost, name=None) 
 
         # define angle cost 
         ang_cost = obs[:, 0:3]
         ang_cost = tf.math.reduce_mean(tf.abs(ang_cost), axis=1)
-        ang_cost = tf.math.tanh(ang_cost, name=None) #value~-0.8
+        ang_cost = tf.math.tanh(ang_cost, name=None) 
 
         #plotter
         # dist_cost = tf.Print(dist_cost,[dist_cost],message="This is dist_cost: ")
