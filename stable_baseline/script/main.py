@@ -60,10 +60,10 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
 def main(logdir):
 	# params
-    SLEEP_RATE = 10 #1 2 10 50 100Hz
+    SLEEP_RATE = 100 #1 2 10 50 100Hz
     EPISODE_TIME = 30 # 30 120 sec
     USE_MPC = False
-    N_EPISODE = 2000000
+    N_EPISODE = 1000000
     Action_Choice = np.array([1,1,1,1,0,0,0,0])
     EPISODE_LENGTH = SLEEP_RATE * EPISODE_TIME
     TOTAL_TIMESTEPS = EPISODE_LENGTH * N_EPISODE
@@ -84,7 +84,7 @@ def main(logdir):
     print("Action space:", env.action_space)
 
     # callback
-    SAVE_FREQ = EPISODE_LENGTH*20 # save model for every 20 episode
+    SAVE_FREQ = EPISODE_LENGTH*100 # save model for every 20 episode
     checkpoint_callback = CheckpointCallback(save_freq=SAVE_FREQ,
     										save_path=checkpoint_path,
                                             name_prefix='sac_callback_model')

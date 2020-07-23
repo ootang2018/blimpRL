@@ -7,11 +7,9 @@ from scipy.io import savemat
 
 
 class Agent():
-    def __init__(self, model_path):
-        SLEEP_RATE = 100 #1 100
-        self.EPISODE_LENGTH = SLEEP_RATE*30 #60 120
-
-        self.env = BlimpEnv(SLEEP_RATE)
+    def __init__(self, model_path, SLEEP_RATE = 2, EPISODE_TIME = 30, USE_MPC = False, Action_Choice = np.array([1,1,1,1,0,0,0,0]) ):
+        self.EPISODE_LENGTH = SLEEP_RATE*EPISODE_TIME
+        self.env = BlimpEnv(SLEEP_RATE, EPISODE_TIME, USE_MPC, Action_Choice)
         self.model = SAC.load(model_path)
 
     def sample(self, EPISODE_LENGTH):
@@ -60,8 +58,8 @@ class Agent():
 
 if __name__ == "__main__":
 
-    logdir = '/home/yliu2/rl_log/test/SAC/alt'
-    model_path = '/home/yliu2/rl_log/SAC/ALT/3act/exp1/best_model.zip'
+    logdir = '/home/yliu2/blimp_ws/exp_log/test'
+    model_path = '/home/yliu2/blimp_ws/exp_log/SAC/HOVER/4act/exp1/checkpoint/sac_callback_model_1494000_steps.zip'
 
     agent = Agent(model_path)
     agent.start(logdir)
