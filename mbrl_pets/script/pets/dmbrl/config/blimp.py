@@ -90,7 +90,7 @@ class BlimpConfigModule:
         9:11 velocity
         12:14 acceleration
         '''
-        w_alt, w_dist, w_ang = 0.0, 1.0, 0.0
+        w_alt, w_dist, w_ang = 0.0, 0.8, 0.1
 
         # define altitude cost
         alt_cost = tf.abs(obs[:, 8])
@@ -123,7 +123,7 @@ class BlimpConfigModule:
         6: left fin
         7: right fin
         '''
-        w_act = 0
+        w_act = 0.1
       
         # define action cost
         act_cost = tf.norm(acs, ord='euclidean', axis=1, name=None) 
