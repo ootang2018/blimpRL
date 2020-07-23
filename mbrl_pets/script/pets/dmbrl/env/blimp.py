@@ -533,7 +533,7 @@ class BlimpEnv(gym.Env):
 
         #done is used to reset environment when episode finished
         done = False
-        if (self.timestep%(self.EPISODE_LENGTH+1)==0): #disable this for longer rendering time
+        if (self.timestep%(self.EPISODE_LENGTH+1)==0): # TODO: disable this for longer rendering time
             done = True
 
         #reset if blimp fly too far away

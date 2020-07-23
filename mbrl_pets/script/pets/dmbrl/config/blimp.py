@@ -21,7 +21,7 @@ class BlimpConfigModule:
     TASK_TIME = 30 #(sec)
     PLAN_HOR = 10 # 5 7 10 15 20
     USE_MPC = False # use mpc assigned way point
-    Action_Choice = [1,1,1,1,0,0,0,0] # action number
+    Action_Choice = [1,1,1,1,1,1,1,1] # action number
     NTRAIN_ITERS = 1000 # 500, 1000, 2000
 
     TASK_HORIZON = TASK_TIME * SLEEP_RATE 
@@ -90,7 +90,7 @@ class BlimpConfigModule:
         9:11 velocity
         12:14 acceleration
         '''
-        w_alt, w_dist, w_ang = 0.0, 0.9, 0.0
+        w_alt, w_dist, w_ang = 0.0, 1.0, 0.0
 
         # define altitude cost
         alt_cost = tf.abs(obs[:, 8])
@@ -123,7 +123,7 @@ class BlimpConfigModule:
         6: left fin
         7: right fin
         '''
-        w_act = 0.1
+        w_act = 0
       
         # define action cost
         act_cost = tf.norm(acs, ord='euclidean', axis=1, name=None) 
